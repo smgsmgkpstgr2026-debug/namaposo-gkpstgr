@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sermon GSM GKPS Tangerang</title>
+    <title>Namaposo GKPS Tangerang</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -59,6 +63,25 @@
             background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
             background-attachment: fixed;
             background-size: cover;
+        }
+
+        /* === Judul utama: font ekspresif + warna cerah + animasi === */
+        .hero-title {
+            font-family: 'Baloo 2', system-ui, sans-serif;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            line-height: 1.05;
+            background: linear-gradient(100deg, #fef08a 0%, #fda4af 25%, #f0abfc 50%, #a5b4fc 75%, #67e8f9 100%);
+            background-size: 220% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            filter: drop-shadow(0 2px 10px rgba(236, 110, 173, 0.45)) drop-shadow(0 0 22px rgba(129, 140, 248, 0.35));
+            animation: heroShine 6s linear infinite;
+        }
+        @keyframes heroShine {
+            to { background-position: 220% center; }
         }
         .glass-panel {
             background: rgba(255, 255, 255, 0.85);
@@ -153,7 +176,7 @@
     <script type="text/babel" data-type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js';
         import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-analytics.js';
-        import { getFirestore, collection, addDoc, onSnapshot, query, updateDoc, doc, serverTimestamp, deleteDoc, writeBatch, enableIndexedDbPersistence, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
+        import { getFirestore, collection, addDoc, onSnapshot, query, where, updateDoc, doc, serverTimestamp, deleteDoc, writeBatch, enableIndexedDbPersistence, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
         import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, getIdTokenResult } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js';
         import { QrCode, Users, CheckCircle, Search, Download, Trash2, Plus, Lock, LogOut, Camera, AlertCircle, RefreshCw, FileUp, User, LogIn, UserCog, CameraOff, List, Printer, AlertTriangle, KeyRound, Sparkles, ShieldCheck, PieChart, BarChart3, XCircle, FileSpreadsheet, FileText, TrendingUp, Filter, LayoutList, X, CalendarDays, TableProperties, LineChart, ChevronDown, Briefcase, Archive } from 'https://esm.sh/lucide-react@0.292.0';
 
@@ -178,14 +201,13 @@
         const COLLECTION_NAME = 'gkps_participants';
         const CONFIG_COLLECTION = 'gkps_config';
         const LOGS_COLLECTION = 'gkps_attendance_logs';
+        const SESSIONS_COLLECTION = 'gkps_sessions';
+        const SESSION_CHECKINS_COLLECTION = 'gkps_session_checkins';
+        const NOTES_COLLECTION = 'gkps_notes';
 
         const CLASS_OPTIONS = [
-            "Daud",
-            "Daniel",
-            "Paulus",
-            "Ester",
-            "Pos PI Abraham",
-            "Pos PI Timotius"
+            "Laki-laki",
+            "Perempuan"
         ];
 
         const formatTime = (timestamp) => {
@@ -248,12 +270,12 @@
             const chartInstanceBar = React.useRef(null);
             const chartInstanceLine = React.useRef(null);
 
-            const uniqueClasses = ['SEMUA', ...new Set(participants.map(p => p.kelas || 'Tanpa Kelas'))].sort();
+            const uniqueClasses = ['SEMUA', ...new Set(participants.map(p => p.kelas || 'Tanpa Keterangan'))].sort();
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
 
             const filteredData = React.useMemo(() => {
                 return participants.filter(p => {
-                    const kelasMatch = filterKelas === 'SEMUA' || (p.kelas || 'Tanpa Kelas') === filterKelas;
+                    const kelasMatch = filterKelas === 'SEMUA' || (p.kelas || 'Tanpa Keterangan') === filterKelas;
                     const statusMatch = filterStatus === 'SEMUA' || 
                                       (filterStatus === 'HADIR' && p.checkedIn) || 
                                       (filterStatus === 'BELUM' && !p.checkedIn);
@@ -275,7 +297,7 @@
 
                 const classDist = {};
                 filteredData.forEach(p => {
-                    const c = p.kelas || 'Tanpa Kelas';
+                    const c = p.kelas || 'Tanpa Keterangan';
                     classDist[c] = (classDist[c] || 0) + 1;
                 });
                 const barLabels = Object.keys(classDist);
@@ -365,7 +387,7 @@
                         <div className="p-6 bg-gray-50 border-b border-gray-200 shrink-0">
                             <div className="flex flex-col xl:flex-row gap-4 mb-4 justify-between items-end xl:items-center">
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full xl:w-auto">
-                                    <div className="relative"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Filter size={16} className="text-gray-400"/></div><select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none bg-white">{uniqueClasses.map(c => <option key={c} value={c}>{c === 'SEMUA' ? 'Semua Kelas' : c}</option>)}</select></div>
+                                    <div className="relative"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Filter size={16} className="text-gray-400"/></div><select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none bg-white">{uniqueClasses.map(c => <option key={c} value={c}>{c === 'SEMUA' ? 'Semua Jenis Kelamin' : c}</option>)}</select></div>
                                     <div className="relative"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><CheckCircle size={16} className="text-gray-400"/></div><select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none bg-white"><option value="SEMUA">Semua Status</option><option value="HADIR">Sudah Hadir</option><option value="BELUM">Belum Hadir</option></select></div>
                                     <div className="relative"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={16} className="text-gray-400"/></div><input type="text" placeholder="Cari Nama/ID..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none" /></div>
                                 </div>
@@ -386,11 +408,11 @@
                                 <div className="flex-1 overflow-auto p-6">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col"><h4 className="font-bold text-gray-600 mb-2 text-xs uppercase flex items-center gap-2"><PieChart size={14}/> Komposisi Status</h4><div className="flex-1 min-h-[150px] relative"><canvas ref={modalPieRef}></canvas></div></div>
-                                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col"><h4 className="font-bold text-gray-600 mb-2 text-xs uppercase flex items-center gap-2"><BarChart3 size={14}/> Distribusi Kelas</h4><div className="flex-1 min-h-[150px] relative"><canvas ref={modalBarRef}></canvas></div></div>
+                                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col"><h4 className="font-bold text-gray-600 mb-2 text-xs uppercase flex items-center gap-2"><BarChart3 size={14}/> Distribusi Jenis Kelamin</h4><div className="flex-1 min-h-[150px] relative"><canvas ref={modalBarRef}></canvas></div></div>
                                         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col"><h4 className="font-bold text-gray-600 mb-2 text-xs uppercase flex items-center gap-2"><TrendingUp size={14}/> Matriks Bulanan</h4><div className="flex-1 min-h-[150px] relative"><canvas ref={modalLineRef}></canvas></div></div>
                                     </div>
                                     <table className="w-full text-left border-collapse">
-                                        <thead className="bg-gray-100 sticky top-0 z-10"><tr><th className="p-4 rounded-tl-xl text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nama Peserta</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Kelas</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Kategori</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="p-4 rounded-tr-xl text-xs font-bold text-gray-500 uppercase tracking-wider">Waktu</th></tr></thead>
+                                        <thead className="bg-gray-100 sticky top-0 z-10"><tr><th className="p-4 rounded-tl-xl text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nama Peserta</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Jenis Kelamin</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Kategori</th><th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="p-4 rounded-tr-xl text-xs font-bold text-gray-500 uppercase tracking-wider">Waktu</th></tr></thead>
                                         <tbody className="divide-y divide-gray-100">{filteredData.length > 0 ? (filteredData.map((p) => (<tr key={p.id} className="hover:bg-gray-50 transition"><td className="p-4 font-mono text-sm text-gray-600">{p.regNum}</td><td className="p-4 font-bold text-gray-800">{p.name}</td><td className="p-4 text-sm text-gray-600"><span className="bg-gray-100 px-2 py-1 rounded-md font-bold text-xs">{p.kelas}</span></td><td className="p-4 text-sm text-gray-600">{p.category || '-'}</td><td className="p-4">{p.checkedIn ? <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-bold"><CheckCircle size={12}/> Hadir</span> : <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-700 px-2 py-1 rounded-full text-xs font-bold"><XCircle size={12}/> Belum</span>}</td><td className="p-4 text-sm text-gray-500 font-mono">{formatTime(p.checkInTime)}</td></tr>))) : (<tr><td colSpan="6" className="p-12 text-center text-gray-400 font-medium italic">Data tidak ditemukan.</td></tr>)}</tbody>
                                     </table>
                                 </div>
@@ -423,10 +445,10 @@
                 const present = participants.filter(p => p.checkedIn).length;
                 const absent = total - present;
 
-                const rawClasses = participants.map(p => p.kelas || 'Tanpa Kelas');
+                const rawClasses = participants.map(p => p.kelas || 'Tanpa Keterangan');
                 const classes = [...new Set(rawClasses)].sort();
-                const dataPresent = classes.map(cls => participants.filter(p => (p.kelas || 'Tanpa Kelas') === cls && p.checkedIn).length);
-                const dataAbsent = classes.map(cls => participants.filter(p => (p.kelas || 'Tanpa Kelas') === cls && !p.checkedIn).length);
+                const dataPresent = classes.map(cls => participants.filter(p => (p.kelas || 'Tanpa Keterangan') === cls && p.checkedIn).length);
+                const dataAbsent = classes.map(cls => participants.filter(p => (p.kelas || 'Tanpa Keterangan') === cls && !p.checkedIn).length);
 
                 const monthCounts = {};
                 participants.filter(p => p.checkedIn && p.checkInTime).forEach(p => {
@@ -507,7 +529,7 @@
                     <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-cyan-100 p-2 rounded-lg text-cyan-600"><TrendingUp size={20}/></div><h3 className="font-bold text-gray-700">Analisa Trend Kehadiran (Per Bulan)</h3></div><div className="h-64 w-full"><canvas ref={trendRef}></canvas></div></div>
                     <div className="grid md:grid-cols-2 gap-6">
                         <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-emerald-100 p-2 rounded-lg text-emerald-600"><PieChart size={20}/></div><h3 className="font-bold text-gray-700">Persentase Saat Ini</h3></div><div className="h-56 relative"><canvas ref={pieRef}></canvas><div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><span className="text-3xl font-black text-gray-800">{participants.length > 0 ? Math.round((participants.filter(p=>p.checkedIn).length / participants.length) * 100) : 0}%</span></div></div></div>
-                        <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><BarChart3 size={20}/></div><h3 className="font-bold text-gray-700">Analisa Per Kelas</h3></div><div className="h-56"><canvas ref={barRef}></canvas></div></div>
+                        <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><BarChart3 size={20}/></div><h3 className="font-bold text-gray-700">Analisa Per Jenis Kelamin</h3></div><div className="h-56"><canvas ref={barRef}></canvas></div></div>
                     </div>
                 </div>
             );
@@ -540,7 +562,7 @@
             </nav>
         );
 
-        const ScannerView = ({ scanInput, setScanInput, handleCheckIn, scanStatus, scannedName, isSessionOpen, isAdmin, isManager, isScanner }) => {
+        const ScannerView = ({ scanInput, setScanInput, handleCheckIn, scanStatus, scannedName, isSessionOpen, isAdmin, isManager, isScanner, activeSessionName }) => {
             const videoRef = React.useRef(null);
             const scannerRef = React.useRef(null);
             const [cameraError, setCameraError] = React.useState(null);
@@ -603,6 +625,11 @@
             return (
                 <div className="flex flex-col items-center justify-center min-h-[80vh] p-4 max-w-md mx-auto">
                     <h2 className="text-3xl font-extrabold mb-6 text-white tracking-tight drop-shadow-md">Scan Absensi</h2>
+                    {activeSessionName ? (
+                        <div className="mb-6 -mt-3 bg-emerald-500/20 border border-emerald-400/50 text-emerald-100 px-4 py-2 rounded-full text-sm font-bold backdrop-blur flex items-center gap-2"><CalendarDays size={16}/> Sesi: {activeSessionName}</div>
+                    ) : (
+                        <div className="mb-6 -mt-3 bg-amber-500/20 border border-amber-400/50 text-amber-100 px-4 py-2 rounded-full text-sm font-bold backdrop-blur flex items-center gap-2"><AlertCircle size={16}/> Belum ada sesi aktif — absensi umum</div>
+                    )}
                     <div className="scan-container mb-8 shadow-2xl ring-4 ring-white/20">
                         {flashActive && <div className="scan-flash animate-flash bg-white absolute inset-0 z-50"></div>}
                         {cameraError ? <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center bg-gray-900 z-10"><CameraOff size={48} className="mb-4 text-red-400" /><p className="font-bold text-red-300 mb-2">Kamera Bermasalah</p><button onClick={() => window.location.reload()} className="bg-primary px-4 py-2 rounded-lg font-bold text-sm hover:bg-secondary transition">Coba Refresh</button></div> : <><video ref={videoRef} className="scan-video" playsInline muted autoPlay></video><div className="scan-overlay"></div><div className="absolute inset-0 pointer-events-none flex items-center justify-center"><div className="w-64 h-64 border-2 border-yellow-400/80 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"><div className="absolute top-0 left-0 w-6 h-6 border-l-4 border-t-4 border-yellow-500 rounded-tl-lg -ml-1 -mt-1"></div><div className="absolute top-0 right-0 w-6 h-6 border-r-4 border-t-4 border-yellow-500 rounded-tr-lg -mr-1 -mt-1"></div><div className="absolute bottom-0 left-0 w-6 h-6 border-l-4 border-b-4 border-yellow-500 rounded-bl-lg -ml-1 -mb-1"></div><div className="absolute bottom-0 right-0 w-6 h-6 border-r-4 border-b-4 border-yellow-500 rounded-br-lg -mr-1 -mb-1"></div></div><p className="absolute bottom-12 text-white text-xs bg-black/50 backdrop-blur px-3 py-1.5 rounded-full font-medium tracking-wide">ARAHKAN QR CODE KE KOTAK</p></div></>}
@@ -659,6 +686,16 @@
             
             const [showAnalysisModal, setShowAnalysisModal] = React.useState(false);
 
+            // === RETREAT: sesi, check-in per sesi, catatan ===
+            const [sessions, setSessions] = React.useState([]);
+            const [activeSessionId, setActiveSessionId] = React.useState('');
+            const [sessionCheckins, setSessionCheckins] = React.useState([]);
+            const [newSessionName, setNewSessionName] = React.useState('');
+            const [newSessionDay, setNewSessionDay] = React.useState('11 Juli 2026');
+            const [myNotes, setMyNotes] = React.useState([]);
+            const [noteDrafts, setNoteDrafts] = React.useState({});
+            const [savingNoteId, setSavingNoteId] = React.useState('');
+
             React.useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, async (u) => {
                     setUser(u);
@@ -699,7 +736,25 @@
                     if (s.exists()) setIsSessionOpen(s.data().open);
                     else setDoc(doc(db, CONFIG_COLLECTION, 'session_status'), { open: true });
                 });
-                return () => { unsubParticipants(); unsubSession(); };
+                // Daftar sesi retreat (diurutkan: hari lalu waktu dibuat)
+                const unsubSessions = onSnapshot(query(collection(db, SESSIONS_COLLECTION)), (s) => {
+                    const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    list.sort((a, b) => {
+                        const ad = (a.day || '') + String(a.createdAt?.seconds || 0).padStart(12, '0');
+                        const bd = (b.day || '') + String(b.createdAt?.seconds || 0).padStart(12, '0');
+                        return ad < bd ? -1 : ad > bd ? 1 : 0;
+                    });
+                    setSessions(list);
+                });
+                // Sesi yang sedang aktif (untuk check-in)
+                const unsubActive = onSnapshot(doc(db, CONFIG_COLLECTION, 'active_session'), (s) => {
+                    setActiveSessionId(s.exists() ? (s.data().sessionId || '') : '');
+                });
+                // Semua check-in per sesi
+                const unsubSessionCheckins = onSnapshot(query(collection(db, SESSION_CHECKINS_COLLECTION)), (s) => {
+                    setSessionCheckins(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                return () => { unsubParticipants(); unsubSession(); unsubSessions(); unsubActive(); unsubSessionCheckins(); };
             }, [user]);
 
             const handleSystemLogin = async (e) => {
@@ -854,16 +909,43 @@
                     playSound('error'); // Audio Gagal
                     return; 
                 }
-                if (participant.checkedIn) { 
+
+                // Sesi retreat yang sedang aktif (jika ada)
+                const activeSession = sessions.find(s => s.id === activeSessionId);
+
+                // Cek duplikat: per-sesi jika ada sesi aktif, jika tidak pakai status global lama
+                if (activeSession) {
+                    const already = sessionCheckins.some(c => c.sessionId === activeSession.id && (c.regNum || '').toUpperCase() === cleanInput);
+                    if (already) {
+                        setScanStatus('duplicate');
+                        setScannedName(participant.name);
+                        playSound('error');
+                        return;
+                    }
+                } else if (participant.checkedIn) {
                     setScanStatus('duplicate'); 
                     setScannedName(participant.name); 
-                    playSound('error'); // Audio Gagal/Duplikat
+                    playSound('error');
                     return; 
                 }
                 
                 try {
+                    // Tetap perbarui status global (agar Live & dashboard lama tetap jalan)
                     await updateDoc(doc(db, COLLECTION_NAME, participant.id), { checkedIn: true, checkInTime: serverTimestamp() });
-                    
+
+                    // Catat check-in per sesi (inti fitur retreat)
+                    if (activeSession) {
+                        await addDoc(collection(db, SESSION_CHECKINS_COLLECTION), {
+                            sessionId: activeSession.id,
+                            sessionName: activeSession.name || '',
+                            sessionDay: activeSession.day || '',
+                            regNum: participant.regNum,
+                            name: participant.name,
+                            kelas: participant.kelas || '',
+                            timestamp: serverTimestamp()
+                        });
+                    }
+
                     await addDoc(collection(db, LOGS_COLLECTION), {
                         regNum: participant.regNum,
                         name: participant.name,
@@ -884,20 +966,155 @@
                     setScanStatus('error');
                     playSound('error');
                 }
-            }, [participants, isSessionOpen, isAdmin, isManager]);
+            }, [participants, isSessionOpen, isAdmin, isManager, sessions, activeSessionId, sessionCheckins]);
+
+            // === RETREAT: fungsi kelola sesi (admin) ===
+            const addSession = async (e) => {
+                if (e) e.preventDefault();
+                const name = newSessionName.trim();
+                if (!name) return;
+                try {
+                    await addDoc(collection(db, SESSIONS_COLLECTION), {
+                        name: name,
+                        day: newSessionDay || '',
+                        createdAt: serverTimestamp()
+                    });
+                    setNewSessionName('');
+                } catch (err) { alert("Gagal menambah sesi: " + (err?.message || err)); }
+            };
+
+            const deleteSession = async (id, name) => {
+                if (!confirm(`Hapus sesi "${name}"?\nData check-in sesi ini tidak ikut terhapus otomatis, tapi sesi tak akan tampil lagi.`)) return;
+                try {
+                    await deleteDoc(doc(db, SESSIONS_COLLECTION, id));
+                    if (activeSessionId === id) {
+                        await setDoc(doc(db, CONFIG_COLLECTION, 'active_session'), { sessionId: '' }, { merge: true });
+                    }
+                } catch (err) { alert("Gagal menghapus sesi: " + (err?.message || err)); }
+            };
+
+            const setActiveSession = async (id) => {
+                try {
+                    await setDoc(doc(db, CONFIG_COLLECTION, 'active_session'), { sessionId: id }, { merge: true });
+                } catch (err) { alert("Gagal mengubah sesi aktif: " + (err?.message || err)); }
+            };
+
+            // === RETREAT: peserta self check-in ke sesi aktif ===
+            const selfCheckIn = async () => {
+                if (!myParticipantData) return;
+                const activeSession = sessions.find(s => s.id === activeSessionId);
+                if (!activeSession) { alert("Belum ada sesi yang dibuka panitia saat ini."); return; }
+                const already = sessionCheckins.some(c => c.sessionId === activeSession.id && (c.regNum || '').toUpperCase() === (myParticipantData.regNum || '').toUpperCase());
+                if (already) { alert(`Anda sudah tercatat hadir di "${activeSession.name}".`); return; }
+                try {
+                    await updateDoc(doc(db, COLLECTION_NAME, myParticipantData.id), { checkedIn: true, checkInTime: serverTimestamp() });
+                    await addDoc(collection(db, SESSION_CHECKINS_COLLECTION), {
+                        sessionId: activeSession.id,
+                        sessionName: activeSession.name || '',
+                        sessionDay: activeSession.day || '',
+                        regNum: myParticipantData.regNum,
+                        name: myParticipantData.name,
+                        kelas: myParticipantData.kelas || '',
+                        timestamp: serverTimestamp()
+                    });
+                    playSound('success');
+                    alert(`Berhasil! Anda tercatat hadir di "${activeSession.name}".`);
+                } catch (err) { alert("Gagal check-in: " + (err?.message || err)); }
+            };
+
+            // === RETREAT: catatan materi pribadi peserta ===
+            React.useEffect(() => {
+                if (!myParticipantData) { setMyNotes([]); return; }
+                const q = query(collection(db, NOTES_COLLECTION), where('regNum', '==', myParticipantData.regNum));
+                const unsub = onSnapshot(q, (s) => {
+                    setMyNotes(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                }, (err) => console.error("Notes load error:", err));
+                return () => unsub();
+            }, [myParticipantData]);
+
+            const saveNote = async (sessionId) => {
+                if (!myParticipantData) return;
+                const content = (noteDrafts[sessionId] ?? '').trim();
+                const existing = myNotes.find(n => n.sessionId === sessionId);
+                setSavingNoteId(sessionId);
+                try {
+                    const session = sessions.find(s => s.id === sessionId);
+                    if (existing) {
+                        await updateDoc(doc(db, NOTES_COLLECTION, existing.id), { content: content, updatedAt: serverTimestamp() });
+                    } else {
+                        await addDoc(collection(db, NOTES_COLLECTION), {
+                            regNum: myParticipantData.regNum,
+                            name: myParticipantData.name,
+                            sessionId: sessionId,
+                            sessionName: session?.name || '',
+                            sessionDay: session?.day || '',
+                            content: content,
+                            updatedAt: serverTimestamp()
+                        });
+                    }
+                } catch (err) {
+                    alert("Gagal menyimpan catatan: " + (err?.message || err));
+                } finally {
+                    setSavingNoteId('');
+                }
+            };
+
+            const exportMyNotesPDF = () => {
+                try {
+                    if (!window.jspdf || !window.jspdf.jsPDF) { alert("Library PDF belum siap. Refresh halaman."); return; }
+                    const { jsPDF } = window.jspdf;
+                    const docPdf = new jsPDF();
+                    const marginX = 14;
+                    let y = 20;
+                    docPdf.setFontSize(16);
+                    docPdf.text("Catatan Materi - Retreat Namaposo", marginX, y);
+                    y += 8;
+                    docPdf.setFontSize(11);
+                    docPdf.text(`Nama: ${myParticipantData.name} (${myParticipantData.regNum})`, marginX, y);
+                    y += 10;
+                    // Urutkan catatan sesuai urutan sesi
+                    const ordered = sessions
+                        .map(s => ({ session: s, note: myNotes.find(n => n.sessionId === s.id) }))
+                        .filter(x => x.note && (x.note.content || '').trim());
+                    if (ordered.length === 0) {
+                        docPdf.setFontSize(11);
+                        docPdf.text("Belum ada catatan.", marginX, y);
+                    }
+                    ordered.forEach(({ session, note }) => {
+                        if (y > 270) { docPdf.addPage(); y = 20; }
+                        docPdf.setFontSize(12);
+                        docPdf.setFont(undefined, 'bold');
+                        const title = `${session.day ? session.day + ' - ' : ''}${session.name}`;
+                        docPdf.text(title, marginX, y);
+                        y += 6;
+                        docPdf.setFont(undefined, 'normal');
+                        docPdf.setFontSize(10);
+                        const lines = docPdf.splitTextToSize(note.content, 180);
+                        lines.forEach(line => {
+                            if (y > 285) { docPdf.addPage(); y = 20; }
+                            docPdf.text(line, marginX, y);
+                            y += 5;
+                        });
+                        y += 6;
+                    });
+                    docPdf.save(`Catatan_${myParticipantData.name}.pdf`);
+                } catch (err) {
+                    alert("Gagal membuat PDF: " + (err?.message || err));
+                }
+            };
 
             const handleExportXLS = () => {
                 const dataToExport = participants.map(p => ({
                     "Nama": p.name,
                     "ID Registrasi": p.regNum,
-                    "Kelas": p.kelas,
+                    "Jenis Kelamin": p.kelas,
                     "Status": p.checkedIn ? "Hadir" : "Belum",
                     "Waktu Check-in": p.checkedIn ? formatTime(p.checkInTime) + " - " + formatDate(p.checkInTime) : "-"
                 }));
                 const ws = XLSX.utils.json_to_sheet(dataToExport);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Laporan Kehadiran");
-                XLSX.writeFile(wb, "Laporan_GSM_GKPS.xlsx");
+                XLSX.writeFile(wb, "Laporan_Namaposo_GKPS.xlsx");
             };
 
             const handleExportPDF = () => {
@@ -911,7 +1128,7 @@
                     const doc = new jsPDF();
                     
                     doc.setFontSize(18);
-                    doc.text("Laporan Kehadiran Sermon GSM GKPS", 14, 20);
+                    doc.text("Laporan Kehadiran Namaposo GKPS Tangerang", 14, 20);
                     doc.setFontSize(12);
                     doc.text(`Total Peserta: ${participants.length} | Hadir: ${participants.filter(p=>p.checkedIn).length}`, 14, 30);
                     
@@ -930,7 +1147,7 @@
                     }
 
                     doc.autoTable({
-                        head: [['ID', 'Nama', 'Kelas', 'Status', 'Waktu']],
+                        head: [['ID', 'Nama', 'Jenis Kelamin', 'Status', 'Waktu']],
                         body: tableData,
                         startY: 35,
                         theme: 'grid',
@@ -938,7 +1155,7 @@
                         headStyles: { fillColor: [79, 70, 229] }
                     });
 
-                    doc.save("Laporan_GSM_GKPS.pdf");
+                    doc.save("Laporan_Namaposo_GKPS.pdf");
                 } catch (err) {
                     console.error("PDF Error:", err);
                     alert("Terjadi kesalahan saat membuat PDF: " + err.message);
@@ -1033,8 +1250,8 @@
                                     <div className="relative w-32 h-32 bg-white rounded-[1.7rem] flex items-center justify-center shadow-2xl"><Users className="text-primary w-16 h-16" /></div>
                                 </div>
                                 
-                                <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-100 to-white mb-2 drop-shadow-sm">Sermon GSM</h1>
-                                <p className="text-indigo-200 text-lg mb-12 font-medium tracking-wide">GKPS Tangerang • Absensi Digital</p>
+                                <h1 className="hero-title text-4xl md:text-6xl mb-2">Namaposo GKPS Tangerang</h1>
+                                <p className="text-indigo-200 text-lg mb-12 font-medium tracking-wide">Absensi Digital</p>
                                 
                                 <div className="grid grid-cols-2 gap-6 w-full max-w-md">
                                     <button onClick={() => setView('my-qr')} className="group glass-panel p-6 rounded-3xl hover:bg-white/90 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl">
@@ -1096,7 +1313,7 @@
                                         <div className="bg-white/20 p-2 rounded-lg"><LayoutList size={24}/></div>
                                         <div className="text-left">
                                             <span className="block font-black text-lg">BUKA ANALISA DETAIL PESERTA</span>
-                                            <span className="block text-sm text-blue-100 opacity-90">Filter per kelas, status kehadiran, dan pencarian data spesifik.</span>
+                                            <span className="block text-sm text-blue-100 opacity-90">Filter per jenis kelamin, status kehadiran, dan pencarian data spesifik.</span>
                                         </div>
                                     </button>
                                 </div>
@@ -1116,6 +1333,55 @@
                                             className={`px-8 py-3 rounded-xl text-white font-bold shadow-lg transition transform hover:scale-105 active:scale-95 flex items-center gap-2 ${isSessionOpen ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
                                             {isSessionOpen ? <><Lock size={18}/> TUTUP SESI SEKARANG</> : <><ShieldCheck size={18}/> BUKA SESI SEKARANG</>}
                                         </button>
+                                    </div>
+                                )}
+
+                                {(isAdmin || isManager) && (
+                                    <div className="glass-panel p-6 rounded-3xl shadow-lg mb-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg"><CalendarDays className="text-primary"/> Sesi Retreat Namaposo</h3>
+                                            {activeSessionId ? (
+                                                <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full">Sesi aktif: {sessions.find(s => s.id === activeSessionId)?.name || '-'}</span>
+                                            ) : (
+                                                <span className="text-xs font-bold bg-gray-100 text-gray-500 px-3 py-1.5 rounded-full">Belum ada sesi aktif</span>
+                                            )}
+                                        </div>
+
+                                        {isAdmin && (
+                                            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                                                <select value={newSessionDay} onChange={e => setNewSessionDay(e.target.value)} className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none">
+                                                    <option value="11 Juli 2026">11 Juli 2026</option>
+                                                    <option value="12 Juli 2026">12 Juli 2026</option>
+                                                </select>
+                                                <input className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none" placeholder="Nama sesi (mis. Sesi 1: Ibadah Pembuka)" value={newSessionName} onChange={e => setNewSessionName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addSession(e); }} />
+                                                <button onClick={addSession} className="bg-primary text-white px-4 py-3 rounded-xl hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2 font-bold"><Plus size={18}/> Tambah</button>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                            {sessions.length === 0 && <p className="text-sm text-gray-400 italic text-center py-4">Belum ada sesi. {isAdmin ? 'Tambahkan sesi di atas.' : ''}</p>}
+                                            {sessions.map(s => {
+                                                const count = sessionCheckins.filter(c => c.sessionId === s.id).length;
+                                                const isActive = s.id === activeSessionId;
+                                                return (
+                                                    <div key={s.id} className={`flex items-center justify-between p-3 rounded-xl border transition ${isActive ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-100'}`}>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-gray-800 text-sm truncate">{s.name}</p>
+                                                            <p className="text-xs text-gray-400">{s.day} • <span className="font-bold text-indigo-600">{count} hadir</span></p>
+                                                        </div>
+                                                        <div className="flex gap-1 shrink-0 ml-2">
+                                                            {isActive ? (
+                                                                <button onClick={() => setActiveSession('')} className="bg-emerald-100 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-200 flex items-center gap-1"><ShieldCheck size={14}/> Aktif</button>
+                                                            ) : (
+                                                                <button onClick={() => setActiveSession(s.id)} className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 hover:text-indigo-700">Jadikan Aktif</button>
+                                                            )}
+                                                            {isAdmin && <button onClick={() => deleteSession(s.id, s.name)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100" title="Hapus sesi"><Trash2 size={14}/></button>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {isAdmin && <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">Tandai satu sesi sebagai <b>Aktif</b> agar check-in (scan petugas maupun peserta) tercatat ke sesi itu. Klik "Aktif" lagi untuk menonaktifkan.</p>}
                                     </div>
                                 )}
 
@@ -1153,7 +1419,7 @@
                                                         onChange={e => setNewClass(e.target.value)}
                                                         required
                                                     >
-                                                        <option value="">Pilih Kelas...</option>
+                                                        <option value="">Pilih Jenis Kelamin...</option>
                                                         {CLASS_OPTIONS.map(c => (
                                                             <option key={c} value={c}>{c}</option>
                                                         ))}
@@ -1199,7 +1465,7 @@
                             </div>
                         )}
 
-                        {view === 'scanner' && <ScannerView scanInput={scanInput} setScanInput={setScanInput} handleCheckIn={handleCheckIn} scanStatus={scanStatus} scannedName={scannedName} isSessionOpen={isSessionOpen} isAdmin={isAdmin} isManager={isManager} isScanner={isScanner} />}
+                        {view === 'scanner' && <ScannerView scanInput={scanInput} setScanInput={setScanInput} handleCheckIn={handleCheckIn} scanStatus={scanStatus} scannedName={scannedName} isSessionOpen={isSessionOpen} isAdmin={isAdmin} isManager={isManager} isScanner={isScanner} activeSessionName={sessions.find(s => s.id === activeSessionId)?.name || ''} />}
                         
                         {/* =======================================================
                           FIXED LIVE VIEW BLOCK - RESTORED
@@ -1264,8 +1530,8 @@
                                         {searchResults.length > 0 && <div className="mt-6 space-y-2 max-h-60 overflow-y-auto pr-1">{searchResults.map(p => (<button key={p.id} onClick={() => { setMyParticipantData(p); setSearchResults([]); }} className="w-full text-left p-4 bg-white border border-gray-100 rounded-xl hover:bg-indigo-50 transition flex justify-between items-center group"><div><p className="font-bold text-gray-800">{p.name}</p><p className="text-xs text-gray-500 uppercase">{p.kelas}</p></div><div className="bg-gray-100 p-2 rounded-full group-hover:bg-white transition"><Search size={16} className="text-gray-400 group-hover:text-primary" /></div></button>))}</div>}
                                     </div>
                                 ) : (
-                                    <div className="text-center animate-fade-in w-full max-w-sm">
-                                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl mb-6 relative overflow-hidden">
+                                    <div className="text-center animate-fade-in w-full max-w-lg">
+                                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl mb-6 relative overflow-hidden max-w-sm mx-auto">
                                             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary to-secondary"></div>
                                             <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${myParticipantData.regNum}&color=4f46e5`} alt="QR" className="mx-auto mix-blend-multiply" />
                                             <p className="mt-4 text-xs font-mono font-bold text-gray-400 tracking-widest">{myParticipantData.regNum}</p>
@@ -1274,7 +1540,57 @@
                                             <h3 className="text-2xl font-black text-gray-800 leading-tight mb-1">{myParticipantData.name}</h3>
                                             <p className="text-gray-500 font-medium mb-4 uppercase text-sm tracking-wide">{myParticipantData.kelas}</p>
                                             {myParticipantData.checkedIn ? <div className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2"><CheckCircle size={18}/> SUDAH HADIR</div> : <div className="bg-gray-100 text-gray-500 px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2"><div className="w-2 h-2 bg-gray-400 rounded-full"></div> BELUM HADIR</div>}
-                                            <button onClick={() => { setMyParticipantData(null); setMyRegLogin(''); }} className="block w-full mt-6 py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold hover:border-gray-400 hover:text-gray-700 transition">Cari Kembali</button>
+
+                                            {(() => {
+                                                const activeSession = sessions.find(s => s.id === activeSessionId);
+                                                if (!activeSession) return null;
+                                                const already = sessionCheckins.some(c => c.sessionId === activeSession.id && (c.regNum || '').toUpperCase() === (myParticipantData.regNum || '').toUpperCase());
+                                                return (
+                                                    <div className="mt-5 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-left">
+                                                        <p className="text-xs font-bold text-indigo-500 uppercase tracking-wide mb-1">Sesi berlangsung</p>
+                                                        <p className="font-bold text-gray-800 mb-3">{activeSession.day} • {activeSession.name}</p>
+                                                        {already ? (
+                                                            <div className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2"><CheckCircle size={18}/> Anda sudah hadir di sesi ini</div>
+                                                        ) : (
+                                                            <button onClick={selfCheckIn} className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition transform active:scale-95 flex items-center justify-center gap-2"><CheckCircle size={18}/> Catat Kehadiran Saya</button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {sessions.length > 0 && (
+                                                <div className="mt-5 text-left">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="font-bold text-gray-800 flex items-center gap-2"><FileText size={18} className="text-secondary"/> Catatan Materi</h4>
+                                                        <button onClick={exportMyNotesPDF} className="text-xs font-bold bg-violet-100 text-violet-700 px-3 py-1.5 rounded-lg hover:bg-violet-200 transition flex items-center gap-1"><Download size={14}/> PDF</button>
+                                                    </div>
+                                                    <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                                                        {sessions.map(s => {
+                                                            const existing = myNotes.find(n => n.sessionId === s.id);
+                                                            const draftVal = noteDrafts[s.id] ?? (existing?.content ?? '');
+                                                            return (
+                                                                <div key={s.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                                                                    <p className="text-xs font-bold text-indigo-600 mb-1">{s.day}</p>
+                                                                    <p className="font-bold text-gray-800 text-sm mb-2">{s.name}</p>
+                                                                    <textarea
+                                                                        value={draftVal}
+                                                                        onChange={e => setNoteDrafts(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                                                        placeholder="Tulis catatan materi sesi ini..."
+                                                                        rows="3"
+                                                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-secondary/40 resize-y"
+                                                                    />
+                                                                    <div className="flex items-center justify-between mt-2">
+                                                                        <span className="text-[11px] text-gray-400">{existing?.updatedAt ? 'Tersimpan ' + formatTime(existing.updatedAt) : 'Belum disimpan'}</span>
+                                                                        <button onClick={() => saveNote(s.id)} disabled={savingNoteId === s.id} className="text-xs font-bold bg-secondary text-white px-4 py-2 rounded-lg hover:bg-violet-700 transition disabled:opacity-60">{savingNoteId === s.id ? 'Menyimpan...' : 'Simpan'}</button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <button onClick={() => { setMyParticipantData(null); setMyRegLogin(''); setNoteDrafts({}); }} className="block w-full mt-6 py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold hover:border-gray-400 hover:text-gray-700 transition">Cari Kembali</button>
                                         </div>
                                     </div>
                                 )}
