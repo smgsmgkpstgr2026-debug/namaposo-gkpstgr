@@ -1,0 +1,91 @@
+rules_version = '2';
+
+// ============================================================
+//  FIRESTORE SECURITY RULES  (VERSI OPSI A — Custom Claims)
+//  Project : namaposo-gkpstgr
+// ------------------------------------------------------------
+//  Versi ini MENGUNCI di server, bukan di browser.
+//  Peran dibaca dari custom claims pada token Auth:
+//    - request.auth.token.admin   == true
+//    - request.auth.token.manager == true
+//    - request.auth.token.scanner == true
+//  Claims hanya bisa di-set lewat Admin SDK (script set-roles.js),
+//  jadi TIDAK BISA dipalsukan dari browser/DevTools.
+//
+//  Login anonim tetap diizinkan HANYA untuk hak BACA publik
+//  (fitur "QR Saya" & "Live" untuk peserta umum).
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn()  { return request.auth != null; }
+    function isAdmin()     { return isSignedIn() && request.auth.token.admin   == true; }
+    function isManager()   { return isSignedIn() && (request.auth.token.manager == true || isAdmin()); }
+    function isScanner()   { return isSignedIn() && (request.auth.token.scanner == true || isManager()); }
+
+    function isText(val, maxLen) {
+      return val is string && val.size() > 0 && val.size() <= maxLen;
+    }
+
+    // ========================================================
+    //  PESERTA -> gkps_participants
+    // ========================================================
+    match /gkps_participants/{docId} {
+      // Baca: publik (anonim pun) — untuk dashboard, QR Saya, Live
+      allow read: if isSignedIn();
+
+      // Tambah peserta: hanya manager/admin
+      allow create: if isManager()
+        && isText(request.resource.data.name, 120)
+        && isText(request.resource.data.regNum, 60)
+        && request.resource.data.checkedIn is bool;
+
+      // Update:
+      //  (a) Scanner boleh CHECK-IN: hanya mengubah checkedIn & checkInTime.
+      //  (b) Manager/Admin boleh update bebas (regNum tetap dikunci).
+      allow update: if (
+          (isScanner()
+            && request.resource.data.regNum == resource.data.regNum
+            && request.resource.data.name   == resource.data.name
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['checkedIn', 'checkInTime']))
+          ||
+          (isManager() && request.resource.data.regNum == resource.data.regNum)
+        );
+
+      // Hapus peserta: hanya admin
+      allow delete: if isAdmin();
+    }
+
+    // ========================================================
+    //  KONFIGURASI -> gkps_config  ('session_status' open: bool)
+    // ========================================================
+    match /gkps_config/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() && docId in ['session_status'];
+      allow delete: if false;
+    }
+
+    // ========================================================
+    //  LOG KEHADIRAN -> gkps_attendance_logs  (append-only)
+    // ========================================================
+    match /gkps_attendance_logs/{docId} {
+      allow read: if isManager();
+      allow create: if isScanner()
+        && isText(request.resource.data.regNum, 60)
+        && request.resource.data.timestamp != null;
+      allow update, delete: if false;
+    }
+
+    // Koleksi lama gkps_scanners tidak dipakai lagi — tutup total
+    match /gkps_scanners/{docId} {
+      allow read, write: if false;
+    }
+
+    // DEFAULT: tolak semua yang tak dikenal
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
