@@ -178,7 +178,7 @@
         import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-analytics.js';
         import { getFirestore, collection, addDoc, onSnapshot, query, where, updateDoc, doc, serverTimestamp, deleteDoc, writeBatch, enableIndexedDbPersistence, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
         import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, getIdTokenResult } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js';
-        import { QrCode, Users, CheckCircle, Search, Download, Trash2, Plus, Lock, LogOut, Camera, AlertCircle, RefreshCw, FileUp, User, LogIn, UserCog, CameraOff, List, Printer, AlertTriangle, KeyRound, Sparkles, ShieldCheck, PieChart, BarChart3, XCircle, FileSpreadsheet, FileText, TrendingUp, Filter, LayoutList, X, CalendarDays, TableProperties, LineChart, ChevronDown, Briefcase, Archive, ClipboardList } from 'https://esm.sh/lucide-react@0.292.0';
+        import { QrCode, Users, CheckCircle, Search, Download, Trash2, Plus, Lock, LogOut, Camera, AlertCircle, RefreshCw, FileUp, User, LogIn, UserCog, CameraOff, List, Printer, AlertTriangle, KeyRound, Sparkles, ShieldCheck, PieChart, BarChart3, XCircle, FileSpreadsheet, FileText, TrendingUp, Filter, LayoutList, X, CalendarDays, TableProperties, LineChart, ChevronDown, Briefcase, Archive, ClipboardList, Pencil } from 'https://esm.sh/lucide-react@0.292.0';
 
         const firebaseConfig = {
             apiKey: "AIzaSyBgTad0gvBf1iAuEwqygosYmzeypl76Dv8",
@@ -737,6 +737,11 @@
             const [newSessionEnd, setNewSessionEnd] = React.useState('');
             const [attnSessionId, setAttnSessionId] = React.useState('');
             const [attnSearch, setAttnSearch] = React.useState('');
+            const [editingSessionId, setEditingSessionId] = React.useState('');
+            const [editSessionName, setEditSessionName] = React.useState('');
+            const [editSessionDay, setEditSessionDay] = React.useState('');
+            const [editSessionStart, setEditSessionStart] = React.useState('');
+            const [editSessionEnd, setEditSessionEnd] = React.useState('');
             const [myNotes, setMyNotes] = React.useState([]);
             const [noteDrafts, setNoteDrafts] = React.useState({});
             const [savingNoteId, setSavingNoteId] = React.useState('');
@@ -785,9 +790,15 @@
                 const unsubSessions = onSnapshot(query(collection(db, SESSIONS_COLLECTION)), (s) => {
                     const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
                     list.sort((a, b) => {
-                        const ad = (a.day || '') + String(a.createdAt?.seconds || 0).padStart(12, '0');
-                        const bd = (b.day || '') + String(b.createdAt?.seconds || 0).padStart(12, '0');
-                        return ad < bd ? -1 : ad > bd ? 1 : 0;
+                        const dayA = a.day || '';
+                        const dayB = b.day || '';
+                        if (dayA !== dayB) return dayA < dayB ? -1 : 1;
+                        // Sesi tanpa jam mulai diletakkan paling bawah (pakai sentinel '99:99')
+                        const startA = a.startTime || '99:99';
+                        const startB = b.startTime || '99:99';
+                        if (startA !== startB) return startA < startB ? -1 : 1;
+                        // Tiebreaker: urutan dibuat
+                        return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
                     });
                     setSessions(list);
                 });
@@ -1046,6 +1057,36 @@
                 try {
                     await setDoc(doc(db, CONFIG_COLLECTION, 'active_session'), { sessionId: id }, { merge: true });
                 } catch (err) { alert("Gagal mengubah sesi aktif: " + (err?.message || err)); }
+            };
+
+            // === RETREAT: edit sesi ===
+            const startEditSession = (s) => {
+                setEditingSessionId(s.id);
+                setEditSessionName(s.name || '');
+                setEditSessionDay(s.day || '11 Juli 2026');
+                setEditSessionStart(s.startTime || '');
+                setEditSessionEnd(s.endTime || '');
+            };
+
+            const cancelEditSession = () => {
+                setEditingSessionId('');
+                setEditSessionName('');
+                setEditSessionStart('');
+                setEditSessionEnd('');
+            };
+
+            const saveEditSession = async (id) => {
+                const name = editSessionName.trim();
+                if (!name) { alert("Nama sesi tidak boleh kosong."); return; }
+                try {
+                    await updateDoc(doc(db, SESSIONS_COLLECTION, id), {
+                        name: name,
+                        day: editSessionDay || '',
+                        startTime: editSessionStart || '',
+                        endTime: editSessionEnd || ''
+                    });
+                    cancelEditSession();
+                } catch (err) { alert("Gagal menyimpan perubahan: " + (err?.message || err)); }
             };
 
             // Format jam sesi untuk tampilan (mis. "09.00 - 12.00")
@@ -1510,6 +1551,29 @@
                                             {sessions.map(s => {
                                                 const count = sessionCheckins.filter(c => c.sessionId === s.id).length;
                                                 const isActive = s.id === activeSessionId;
+                                                if (editingSessionId === s.id) {
+                                                    return (
+                                                        <div key={s.id} className="p-3 rounded-xl border-2 border-indigo-300 bg-indigo-50/50">
+                                                            <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                                                                <select value={editSessionDay} onChange={e => setEditSessionDay(e.target.value)} className="p-2.5 bg-white border border-gray-200 rounded-lg text-sm outline-none">
+                                                                    <option value="11 Juli 2026">11 Juli 2026</option>
+                                                                    <option value="12 Juli 2026">12 Juli 2026</option>
+                                                                </select>
+                                                                <input className="flex-1 p-2.5 bg-white border border-gray-200 rounded-lg text-sm outline-none" placeholder="Nama sesi" value={editSessionName} onChange={e => setEditSessionName(e.target.value)} />
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mb-3">
+                                                                <span className="text-xs font-bold text-gray-400">Jam</span>
+                                                                <input type="time" value={editSessionStart} onChange={e => setEditSessionStart(e.target.value)} className="flex-1 p-2.5 bg-white border border-gray-200 rounded-lg text-sm outline-none" />
+                                                                <span className="text-gray-400">–</span>
+                                                                <input type="time" value={editSessionEnd} onChange={e => setEditSessionEnd(e.target.value)} className="flex-1 p-2.5 bg-white border border-gray-200 rounded-lg text-sm outline-none" />
+                                                            </div>
+                                                            <div className="flex gap-2 justify-end">
+                                                                <button onClick={cancelEditSession} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-bold">Batal</button>
+                                                                <button onClick={() => saveEditSession(s.id)} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-indigo-700 flex items-center gap-1"><CheckCircle size={14}/> Simpan</button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
                                                 return (
                                                     <div key={s.id} className={`flex items-center justify-between p-3 rounded-xl border transition ${isActive ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-100'}`}>
                                                         <div className="min-w-0">
@@ -1522,6 +1586,7 @@
                                                             ) : (
                                                                 <button onClick={() => setActiveSession(s.id)} className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100 hover:text-indigo-700">Jadikan Aktif</button>
                                                             )}
+                                                            {isAdmin && <button onClick={() => startEditSession(s)} className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-100" title="Edit sesi"><Pencil size={14}/></button>}
                                                             {isAdmin && <button onClick={() => deleteSession(s.id, s.name)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100" title="Hapus sesi"><Trash2 size={14}/></button>}
                                                         </div>
                                                     </div>
