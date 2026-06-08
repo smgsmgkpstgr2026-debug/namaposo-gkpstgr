@@ -430,16 +430,18 @@
             );
         };
 
-        const StatsChart = ({ participants }) => {
+        const StatsChart = ({ participants, sessions = [], sessionCheckins = [] }) => {
             const pieRef = React.useRef(null);
             const barRef = React.useRef(null);
             const trendRef = React.useRef(null); 
+            const hourRef = React.useRef(null);
             const chartInstancePie = React.useRef(null);
             const chartInstanceBar = React.useRef(null);
             const chartInstanceTrend = React.useRef(null);
+            const chartInstanceHour = React.useRef(null);
 
             React.useEffect(() => {
-                if (!participants.length) return;
+                if (!participants.length && !sessions.length) return;
 
                 const total = participants.length;
                 const present = participants.filter(p => p.checkedIn).length;
@@ -450,15 +452,32 @@
                 const dataPresent = classes.map(cls => participants.filter(p => (p.kelas || 'Tanpa Keterangan') === cls && p.checkedIn).length);
                 const dataAbsent = classes.map(cls => participants.filter(p => (p.kelas || 'Tanpa Keterangan') === cls && !p.checkedIn).length);
 
-                const monthCounts = {};
-                participants.filter(p => p.checkedIn && p.checkInTime).forEach(p => {
-                    const date = p.checkInTime.toDate ? p.checkInTime.toDate() : new Date(p.checkInTime);
-                    const monthKey = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
-                    monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
+                // === Per-sesi: total + rincian jenis kelamin ===
+                const isMale = (k) => { const s = (k || '').toLowerCase(); return s.includes('laki'); };
+                const isFemale = (k) => { const s = (k || '').toLowerCase(); return s.includes('perempuan'); };
+                const sessionLabels = sessions.map((s, i) => s.name && s.name.length <= 18 ? s.name : `Sesi ${i + 1}`);
+                const sessMale = sessions.map(s => sessionCheckins.filter(c => c.sessionId === s.id && isMale(c.kelas)).length);
+                const sessFemale = sessions.map(s => sessionCheckins.filter(c => c.sessionId === s.id && isFemale(c.kelas)).length);
+                const sessOther = sessions.map(s => sessionCheckins.filter(c => c.sessionId === s.id && !isMale(c.kelas) && !isFemale(c.kelas)).length);
+
+                // === Pola jam check-in (semua sesi digabung) ===
+                const hourCounts = {};
+                sessionCheckins.forEach(c => {
+                    if (!c.timestamp) return;
+                    const d = c.timestamp.toDate ? c.timestamp.toDate() : new Date(c.timestamp);
+                    if (isNaN(d)) return;
+                    const h = d.getHours();
+                    hourCounts[h] = (hourCounts[h] || 0) + 1;
                 });
-                
-                const monthLabels = Object.keys(monthCounts);
-                const monthData = Object.values(monthCounts);
+                const presentHours = Object.keys(hourCounts).map(Number).sort((a, b) => a - b);
+                let hourLabels = [], hourData = [];
+                if (presentHours.length) {
+                    const minH = presentHours[0], maxH = presentHours[presentHours.length - 1];
+                    for (let h = minH; h <= maxH; h++) {
+                        hourLabels.push(String(h).padStart(2, '0') + ':00');
+                        hourData.push(hourCounts[h] || 0);
+                    }
+                }
 
                 if (pieRef.current) {
                     if (chartInstancePie.current) chartInstancePie.current.destroy();
@@ -494,24 +513,44 @@
                 if (trendRef.current) {
                     if (chartInstanceTrend.current) chartInstanceTrend.current.destroy();
                     chartInstanceTrend.current = new Chart(trendRef.current, {
-                        type: 'line',
+                        type: 'bar',
                         data: {
-                            labels: monthLabels.length > 0 ? monthLabels : ['Bulan Ini'],
+                            labels: sessionLabels.length ? sessionLabels : ['Belum ada sesi'],
+                            datasets: [
+                                { label: 'Laki-laki', data: sessMale.length ? sessMale : [0], backgroundColor: '#4f46e5', borderRadius: 4, stack: 'g' },
+                                { label: 'Perempuan', data: sessFemale.length ? sessFemale : [0], backgroundColor: '#ec4899', borderRadius: 4, stack: 'g' },
+                                { label: 'Lainnya', data: sessOther.length ? sessOther : [0], backgroundColor: '#94a3b8', borderRadius: 4, stack: 'g' }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
+                            plugins: {
+                                legend: { position: 'top', align: 'end' },
+                                tooltip: { callbacks: { footer: (items) => 'Total: ' + items.reduce((sum, it) => sum + (it.parsed.y || 0), 0) } }
+                            }
+                        }
+                    });
+                }
+
+                if (hourRef.current) {
+                    if (chartInstanceHour.current) chartInstanceHour.current.destroy();
+                    chartInstanceHour.current = new Chart(hourRef.current, {
+                        type: 'bar',
+                        data: {
+                            labels: hourLabels.length ? hourLabels : ['Belum ada data'],
                             datasets: [{
-                                label: 'Total Kehadiran',
-                                data: monthData.length > 0 ? monthData : [present],
-                                borderColor: '#06b6d4',
-                                backgroundColor: 'rgba(6, 182, 212, 0.2)',
-                                fill: true,
-                                tension: 0.4,
-                                pointRadius: 6,
-                                pointHoverRadius: 8
+                                label: 'Check-in',
+                                data: hourData.length ? hourData : [0],
+                                backgroundColor: '#06b6d4',
+                                borderRadius: 4
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            scales: { y: { beginAtZero: true, grid: { borderDash: [5, 5] } }, x: { grid: { display: false } } },
+                            scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { borderDash: [5, 5] } }, x: { grid: { display: false } } },
                             plugins: { legend: { display: false } }
                         }
                     });
@@ -521,12 +560,14 @@
                     if (chartInstancePie.current) chartInstancePie.current.destroy();
                     if (chartInstanceBar.current) chartInstanceBar.current.destroy();
                     if (chartInstanceTrend.current) chartInstanceTrend.current.destroy();
+                    if (chartInstanceHour.current) chartInstanceHour.current.destroy();
                 };
-            }, [participants]);
+            }, [participants, sessions, sessionCheckins]);
 
             return (
                 <div className="space-y-6 mb-8">
-                    <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-cyan-100 p-2 rounded-lg text-cyan-600"><TrendingUp size={20}/></div><h3 className="font-bold text-gray-700">Analisa Trend Kehadiran (Per Bulan)</h3></div><div className="h-64 w-full"><canvas ref={trendRef}></canvas></div></div>
+                    <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-cyan-100 p-2 rounded-lg text-cyan-600"><TrendingUp size={20}/></div><h3 className="font-bold text-gray-700">Kehadiran per Sesi (Laki-laki / Perempuan)</h3></div><div className="h-64 w-full"><canvas ref={trendRef}></canvas></div></div>
+                    <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-cyan-100 p-2 rounded-lg text-cyan-600"><CalendarDays size={20}/></div><h3 className="font-bold text-gray-700">Pola Jam Check-in</h3></div><div className="h-56 w-full"><canvas ref={hourRef}></canvas></div></div>
                     <div className="grid md:grid-cols-2 gap-6">
                         <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-emerald-100 p-2 rounded-lg text-emerald-600"><PieChart size={20}/></div><h3 className="font-bold text-gray-700">Persentase Saat Ini</h3></div><div className="h-56 relative"><canvas ref={pieRef}></canvas><div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><span className="text-3xl font-black text-gray-800">{participants.length > 0 ? Math.round((participants.filter(p=>p.checkedIn).length / participants.length) * 100) : 0}%</span></div></div></div>
                         <div className="glass-panel p-6 rounded-3xl shadow-lg border border-white/40"><div className="flex items-center gap-2 mb-4"><div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><BarChart3 size={20}/></div><h3 className="font-bold text-gray-700">Analisa Per Jenis Kelamin</h3></div><div className="h-56"><canvas ref={barRef}></canvas></div></div>
@@ -1561,7 +1602,7 @@
                                     </div>
                                 )}
 
-                                <StatsChart participants={participants} />
+                                <StatsChart participants={participants} sessions={sessions} sessionCheckins={sessionCheckins} />
 
                                 <div className="grid md:grid-cols-2 gap-6">
                                     {isAdmin && (
