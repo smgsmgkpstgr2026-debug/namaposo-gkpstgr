@@ -1002,6 +1002,7 @@
             // === RETREAT: peserta self check-in ke sesi aktif ===
             const selfCheckIn = async () => {
                 if (!myParticipantData) return;
+                if (!isSessionOpen) { alert("Sesi absensi sedang DITUTUP oleh panitia. Check-in belum bisa dilakukan."); return; }
                 const activeSession = sessions.find(s => s.id === activeSessionId);
                 if (!activeSession) { alert("Belum ada sesi yang dibuka panitia saat ini."); return; }
                 const already = sessionCheckins.some(c => c.sessionId === activeSession.id && (c.regNum || '').toUpperCase() === (myParticipantData.regNum || '').toUpperCase());
@@ -1551,6 +1552,8 @@
                                                         <p className="font-bold text-gray-800 mb-3">{activeSession.day} • {activeSession.name}</p>
                                                         {already ? (
                                                             <div className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2"><CheckCircle size={18}/> Anda sudah hadir di sesi ini</div>
+                                                        ) : !isSessionOpen ? (
+                                                            <div className="bg-rose-50 text-rose-600 border border-rose-200 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-center"><Lock size={18}/> Sesi absensi sedang ditutup panitia</div>
                                                         ) : (
                                                             <button onClick={selfCheckIn} className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition transform active:scale-95 flex items-center justify-center gap-2"><CheckCircle size={18}/> Catat Kehadiran Saya</button>
                                                         )}
