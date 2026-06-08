@@ -178,7 +178,7 @@
         import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-analytics.js';
         import { getFirestore, collection, addDoc, onSnapshot, query, where, updateDoc, doc, serverTimestamp, deleteDoc, writeBatch, enableIndexedDbPersistence, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
         import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, getIdTokenResult } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js';
-        import { QrCode, Users, CheckCircle, Search, Download, Trash2, Plus, Lock, LogOut, Camera, AlertCircle, RefreshCw, FileUp, User, LogIn, UserCog, CameraOff, List, Printer, AlertTriangle, KeyRound, Sparkles, ShieldCheck, PieChart, BarChart3, XCircle, FileSpreadsheet, FileText, TrendingUp, Filter, LayoutList, X, CalendarDays, TableProperties, LineChart, ChevronDown, Briefcase, Archive } from 'https://esm.sh/lucide-react@0.292.0';
+        import { QrCode, Users, CheckCircle, Search, Download, Trash2, Plus, Lock, LogOut, Camera, AlertCircle, RefreshCw, FileUp, User, LogIn, UserCog, CameraOff, List, Printer, AlertTriangle, KeyRound, Sparkles, ShieldCheck, PieChart, BarChart3, XCircle, FileSpreadsheet, FileText, TrendingUp, Filter, LayoutList, X, CalendarDays, TableProperties, LineChart, ChevronDown, Briefcase, Archive, ClipboardList } from 'https://esm.sh/lucide-react@0.292.0';
 
         const firebaseConfig = {
             apiKey: "AIzaSyBgTad0gvBf1iAuEwqygosYmzeypl76Dv8",
@@ -692,6 +692,10 @@
             const [sessionCheckins, setSessionCheckins] = React.useState([]);
             const [newSessionName, setNewSessionName] = React.useState('');
             const [newSessionDay, setNewSessionDay] = React.useState('11 Juli 2026');
+            const [newSessionStart, setNewSessionStart] = React.useState('');
+            const [newSessionEnd, setNewSessionEnd] = React.useState('');
+            const [attnSessionId, setAttnSessionId] = React.useState('');
+            const [attnSearch, setAttnSearch] = React.useState('');
             const [myNotes, setMyNotes] = React.useState([]);
             const [noteDrafts, setNoteDrafts] = React.useState({});
             const [savingNoteId, setSavingNoteId] = React.useState('');
@@ -977,9 +981,13 @@
                     await addDoc(collection(db, SESSIONS_COLLECTION), {
                         name: name,
                         day: newSessionDay || '',
+                        startTime: newSessionStart || '',
+                        endTime: newSessionEnd || '',
                         createdAt: serverTimestamp()
                     });
                     setNewSessionName('');
+                    setNewSessionStart('');
+                    setNewSessionEnd('');
                 } catch (err) { alert("Gagal menambah sesi: " + (err?.message || err)); }
             };
 
@@ -997,6 +1005,93 @@
                 try {
                     await setDoc(doc(db, CONFIG_COLLECTION, 'active_session'), { sessionId: id }, { merge: true });
                 } catch (err) { alert("Gagal mengubah sesi aktif: " + (err?.message || err)); }
+            };
+
+            // Format jam sesi untuk tampilan (mis. "09.00 - 12.00")
+            const sessionTimeLabel = (s) => {
+                if (!s) return '';
+                if (s.startTime && s.endTime) return `${s.startTime} - ${s.endTime}`;
+                if (s.startTime) return s.startTime;
+                return '';
+            };
+
+            // === RETREAT: panitia tandai/hapus kehadiran peserta per sesi ===
+            const addManualCheckin = async (session, participant) => {
+                if (!session || !participant) return;
+                const already = sessionCheckins.some(c => c.sessionId === session.id && (c.regNum || '').toUpperCase() === (participant.regNum || '').toUpperCase());
+                if (already) { alert(`${participant.name} sudah tercatat hadir di sesi ini.`); return; }
+                try {
+                    await updateDoc(doc(db, COLLECTION_NAME, participant.id), { checkedIn: true, checkInTime: serverTimestamp() });
+                    await addDoc(collection(db, SESSION_CHECKINS_COLLECTION), {
+                        sessionId: session.id,
+                        sessionName: session.name || '',
+                        sessionDay: session.day || '',
+                        regNum: participant.regNum,
+                        name: participant.name,
+                        kelas: participant.kelas || '',
+                        manual: true,
+                        timestamp: serverTimestamp()
+                    });
+                    setAttnSearch('');
+                } catch (err) { alert("Gagal menandai hadir: " + (err?.message || err)); }
+            };
+
+            const removeCheckin = async (checkinId, name) => {
+                if (!confirm(`Hapus kehadiran "${name}" dari sesi ini?`)) return;
+                try {
+                    await deleteDoc(doc(db, SESSION_CHECKINS_COLLECTION, checkinId));
+                } catch (err) { alert("Gagal menghapus: " + (err?.message || err)); }
+            };
+
+            const exportSessionXLS = (session) => {
+                try {
+                    const rows = sessionCheckins
+                        .filter(c => c.sessionId === session.id)
+                        .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
+                        .map((c, i) => ({
+                            "No": i + 1,
+                            "Nama": c.name,
+                            "ID Registrasi": c.regNum,
+                            "Jenis Kelamin": c.kelas || '-',
+                            "Cara": c.manual ? "Manual" : "Scan/Self",
+                            "Waktu": formatTime(c.timestamp)
+                        }));
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Hadir");
+                    const safe = (session.name || 'sesi').replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
+                    XLSX.writeFile(wb, `Hadir_${safe}.xlsx`);
+                } catch (err) { alert("Gagal ekspor Excel: " + (err?.message || err)); }
+            };
+
+            const exportSessionPDF = (session) => {
+                try {
+                    if (!window.jspdf || !window.jspdf.jsPDF) { alert("Library PDF belum siap. Refresh halaman."); return; }
+                    const { jsPDF } = window.jspdf;
+                    const docPdf = new jsPDF();
+                    docPdf.setFontSize(15);
+                    docPdf.text("Daftar Hadir - Retreat Namaposo", 14, 18);
+                    docPdf.setFontSize(11);
+                    const timeLabel = sessionTimeLabel(session);
+                    docPdf.text(`${session.day || ''} ${timeLabel ? '(' + timeLabel + ')' : ''}`.trim(), 14, 26);
+                    docPdf.text(`Sesi: ${session.name || ''}`, 14, 32);
+                    const rows = sessionCheckins
+                        .filter(c => c.sessionId === session.id)
+                        .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
+                        .map((c, i) => [String(i + 1), c.name, c.regNum, c.kelas || '-', c.manual ? "Manual" : "Scan/Self", formatTime(c.timestamp)]);
+                    docPdf.autoTable({
+                        startY: 38,
+                        head: [['No', 'Nama', 'ID', 'Jenis Kelamin', 'Cara', 'Waktu']],
+                        body: rows.length ? rows : [['-', 'Belum ada yang hadir', '', '', '', '']],
+                        styles: { fontSize: 9 },
+                        headStyles: { fillColor: [79, 70, 229] }
+                    });
+                    docPdf.setFontSize(10);
+                    const endY = docPdf.lastAutoTable.finalY || 38;
+                    docPdf.text(`Total hadir: ${rows.length}`, 14, endY + 8);
+                    const safe = (session.name || 'sesi').replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 40);
+                    docPdf.save(`Hadir_${safe}.pdf`);
+                } catch (err) { alert("Gagal ekspor PDF: " + (err?.message || err)); }
             };
 
             // === RETREAT: peserta self check-in ke sesi aktif ===
@@ -1349,13 +1444,23 @@
                                         </div>
 
                                         {isAdmin && (
-                                            <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                                                <select value={newSessionDay} onChange={e => setNewSessionDay(e.target.value)} className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none">
-                                                    <option value="11 Juli 2026">11 Juli 2026</option>
-                                                    <option value="12 Juli 2026">12 Juli 2026</option>
-                                                </select>
-                                                <input className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none" placeholder="Nama sesi (mis. Sesi 1: Ibadah Pembuka)" value={newSessionName} onChange={e => setNewSessionName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addSession(e); }} />
-                                                <button onClick={addSession} className="bg-primary text-white px-4 py-3 rounded-xl hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2 font-bold"><Plus size={18}/> Tambah</button>
+                                            <div className="bg-gray-50/60 rounded-2xl p-3 mb-4">
+                                                <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                                                    <select value={newSessionDay} onChange={e => setNewSessionDay(e.target.value)} className="p-3 bg-white border border-gray-200 rounded-xl text-sm outline-none">
+                                                        <option value="11 Juli 2026">11 Juli 2026</option>
+                                                        <option value="12 Juli 2026">12 Juli 2026</option>
+                                                    </select>
+                                                    <input className="flex-1 p-3 bg-white border border-gray-200 rounded-xl text-sm outline-none" placeholder="Nama sesi (mis. Sesi 1: Ibadah Pembuka)" value={newSessionName} onChange={e => setNewSessionName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addSession(e); }} />
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        <span className="text-xs font-bold text-gray-400 whitespace-nowrap">Jam</span>
+                                                        <input type="time" value={newSessionStart} onChange={e => setNewSessionStart(e.target.value)} className="flex-1 p-3 bg-white border border-gray-200 rounded-xl text-sm outline-none" />
+                                                        <span className="text-gray-400">–</span>
+                                                        <input type="time" value={newSessionEnd} onChange={e => setNewSessionEnd(e.target.value)} className="flex-1 p-3 bg-white border border-gray-200 rounded-xl text-sm outline-none" />
+                                                    </div>
+                                                    <button onClick={addSession} className="bg-primary text-white px-4 py-3 rounded-xl hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2 font-bold"><Plus size={18}/> Tambah Sesi</button>
+                                                </div>
                                             </div>
                                         )}
 
@@ -1368,7 +1473,7 @@
                                                     <div key={s.id} className={`flex items-center justify-between p-3 rounded-xl border transition ${isActive ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-100'}`}>
                                                         <div className="min-w-0">
                                                             <p className="font-bold text-gray-800 text-sm truncate">{s.name}</p>
-                                                            <p className="text-xs text-gray-400">{s.day} • <span className="font-bold text-indigo-600">{count} hadir</span></p>
+                                                            <p className="text-xs text-gray-400">{s.day}{sessionTimeLabel(s) ? ' • ' + sessionTimeLabel(s) : ''} • <span className="font-bold text-indigo-600">{count} hadir</span></p>
                                                         </div>
                                                         <div className="flex gap-1 shrink-0 ml-2">
                                                             {isActive ? (
@@ -1383,6 +1488,76 @@
                                             })}
                                         </div>
                                         {isAdmin && <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">Tandai satu sesi sebagai <b>Aktif</b> agar check-in (scan petugas maupun peserta) tercatat ke sesi itu. Klik "Aktif" lagi untuk menonaktifkan.</p>}
+                                    </div>
+                                )}
+
+                                {(isAdmin || isManager) && (
+                                    <div className="glass-panel p-6 rounded-3xl shadow-lg mb-6">
+                                        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg"><ClipboardList className="text-secondary"/> Daftar Hadir per Sesi</h3>
+                                        {sessions.length === 0 ? (
+                                            <p className="text-sm text-gray-400 italic py-3">Belum ada sesi. Buat sesi dulu di atas.</p>
+                                        ) : (
+                                            <>
+                                                <select value={attnSessionId} onChange={e => { setAttnSessionId(e.target.value); setAttnSearch(''); }} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none mb-4 font-medium">
+                                                    <option value="">— Pilih sesi —</option>
+                                                    {sessions.map(s => <option key={s.id} value={s.id}>{s.day} {sessionTimeLabel(s) ? '('+sessionTimeLabel(s)+') ' : ''}- {s.name}</option>)}
+                                                </select>
+
+                                                {attnSessionId && (() => {
+                                                    const session = sessions.find(s => s.id === attnSessionId);
+                                                    if (!session) return null;
+                                                    const checkins = sessionCheckins
+                                                        .filter(c => c.sessionId === session.id)
+                                                        .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
+                                                    const presentRegs = new Set(checkins.map(c => (c.regNum || '').toUpperCase()));
+                                                    const term = attnSearch.trim().toLowerCase();
+                                                    const candidates = term
+                                                        ? participants.filter(p => !presentRegs.has((p.regNum || '').toUpperCase()) && (p.name.toLowerCase().includes(term) || (p.regNum || '').toLowerCase().includes(term))).slice(0, 6)
+                                                        : [];
+                                                    return (
+                                                        <div>
+                                                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                                                <span className="text-sm font-bold text-gray-700">{checkins.length} peserta hadir</span>
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={() => exportSessionXLS(session)} className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-2 rounded-lg hover:bg-emerald-200 transition flex items-center gap-1"><Download size={14}/> Excel</button>
+                                                                    <button onClick={() => exportSessionPDF(session)} className="text-xs font-bold bg-violet-100 text-violet-700 px-3 py-2 rounded-lg hover:bg-violet-200 transition flex items-center gap-1"><Download size={14}/> PDF</button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="relative mb-3">
+                                                                <input value={attnSearch} onChange={e => setAttnSearch(e.target.value)} placeholder="Tandai hadir manual: ketik nama / ID peserta..." className="w-full p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+                                                                {candidates.length > 0 && (
+                                                                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                                                                        {candidates.map(p => (
+                                                                            <button key={p.id} onClick={() => addManualCheckin(session, p)} className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 transition flex items-center justify-between">
+                                                                                <span className="text-sm font-medium text-gray-700">{p.name} <span className="text-gray-400 font-mono text-xs">{p.regNum}</span></span>
+                                                                                <Plus size={16} className="text-primary"/>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                                                                {checkins.length === 0 && <p className="text-sm text-gray-400 italic text-center py-3">Belum ada yang hadir di sesi ini.</p>}
+                                                                {checkins.map((c, i) => (
+                                                                    <div key={c.id} className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-gray-100">
+                                                                        <div className="flex items-center gap-3 min-w-0">
+                                                                            <span className="text-xs font-bold text-gray-300 w-5 text-right">{i + 1}</span>
+                                                                            <div className="min-w-0">
+                                                                                <p className="font-bold text-gray-800 text-sm truncate">{c.name} {c.manual && <span className="text-[10px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full align-middle">manual</span>}</p>
+                                                                                <p className="text-xs text-gray-400 font-mono">{c.regNum} • {formatTime(c.timestamp)}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <button onClick={() => removeCheckin(c.id, c.name)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100 shrink-0 ml-2" title="Hapus dari sesi"><Trash2 size={14}/></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </>
+                                        )}
                                     </div>
                                 )}
 
@@ -1466,7 +1641,7 @@
                             </div>
                         )}
 
-                        {view === 'scanner' && <ScannerView scanInput={scanInput} setScanInput={setScanInput} handleCheckIn={handleCheckIn} scanStatus={scanStatus} scannedName={scannedName} isSessionOpen={isSessionOpen} isAdmin={isAdmin} isManager={isManager} isScanner={isScanner} activeSessionName={sessions.find(s => s.id === activeSessionId)?.name || ''} />}
+                        {view === 'scanner' && <ScannerView scanInput={scanInput} setScanInput={setScanInput} handleCheckIn={handleCheckIn} scanStatus={scanStatus} scannedName={scannedName} isSessionOpen={isSessionOpen} isAdmin={isAdmin} isManager={isManager} isScanner={isScanner} activeSessionName={(() => { const s = sessions.find(x => x.id === activeSessionId); return s ? (s.name + (sessionTimeLabel(s) ? ' ('+sessionTimeLabel(s)+')' : '')) : ''; })()} />}
                         
                         {/* =======================================================
                           FIXED LIVE VIEW BLOCK - RESTORED
@@ -1549,7 +1724,7 @@
                                                 return (
                                                     <div className="mt-5 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-left">
                                                         <p className="text-xs font-bold text-indigo-500 uppercase tracking-wide mb-1">Sesi berlangsung</p>
-                                                        <p className="font-bold text-gray-800 mb-3">{activeSession.day} • {activeSession.name}</p>
+                                                        <p className="font-bold text-gray-800 mb-3">{activeSession.day}{sessionTimeLabel(activeSession) ? ' • ' + sessionTimeLabel(activeSession) : ''} • {activeSession.name}</p>
                                                         {already ? (
                                                             <div className="bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2"><CheckCircle size={18}/> Anda sudah hadir di sesi ini</div>
                                                         ) : !isSessionOpen ? (
@@ -1573,7 +1748,7 @@
                                                             const draftVal = noteDrafts[s.id] ?? (existing?.content ?? '');
                                                             return (
                                                                 <div key={s.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-                                                                    <p className="text-xs font-bold text-indigo-600 mb-1">{s.day}</p>
+                                                                    <p className="text-xs font-bold text-indigo-600 mb-1">{s.day}{sessionTimeLabel(s) ? ' • ' + sessionTimeLabel(s) : ''}</p>
                                                                     <p className="font-bold text-gray-800 text-sm mb-2">{s.name}</p>
                                                                     <textarea
                                                                         value={draftVal}
