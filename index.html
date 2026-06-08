@@ -1370,14 +1370,14 @@
 
                     <main className="container mx-auto px-4 max-w-4xl">
                         {view === 'home' && (
-                            <div className="flex flex-col items-center justify-center min-h-[70vh] text-center animate-fade-in relative">
+                            <div className="flex flex-col items-center justify-center min-h-[70vh] text-center animate-fade-in relative pt-20 md:pt-0">
                                 {!isAdmin && !isScanner && !isManager && (
-                                    <button onClick={() => setShowLoginModal(true)} className="absolute top-6 right-6 text-white/80 hover:text-white flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full transition hover:bg-white/20">
+                                    <button onClick={() => setShowLoginModal(true)} className="absolute top-4 right-2 md:top-6 md:right-6 z-30 text-white/90 hover:text-white flex items-center gap-2 bg-white/15 backdrop-blur px-4 py-2 rounded-full transition hover:bg-white/25 shadow-lg">
                                         <LogIn size={16} /> <span className="text-sm font-semibold">Login Petugas</span>
                                     </button>
                                 )}
                                 {(isAdmin || isScanner || isManager) && (
-                                    <button onClick={logout} className="absolute top-6 right-6 text-red-100 hover:text-white flex items-center gap-2 bg-red-500/20 backdrop-blur px-4 py-2 rounded-full transition hover:bg-red-500/40 border border-red-500/30">
+                                    <button onClick={logout} className="absolute top-4 right-2 md:top-6 md:right-6 z-30 text-red-100 hover:text-white flex items-center gap-2 bg-red-500/30 backdrop-blur px-4 py-2 rounded-full transition hover:bg-red-500/50 border border-red-500/30 shadow-lg">
                                         <LogOut size={16} /> <span className="text-sm font-bold">Logout</span>
                                     </button>
                                 )}
